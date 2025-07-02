@@ -93,7 +93,6 @@ BuildUnipartiteClusters <- function(sigEdges, nodeSet, verbose = FALSE) {
 #' Find the subnetwork of significant edges n / 2 hops away from each gene.
 #' @param geneSet A character vector of genes comprising the targets of interest.
 #' @param combinedNetwork A concatenation of n PANDA-like networks with the following format:
-#' tf,gene,score_net1, score_net2, ... , score_netn
 #' @param pValues The p-values for all edges.
 #' @param hopConstraint The maximum number of hops to be considered for a gene.
 #' @param verbose Whether or not to print detailed information about the run.
@@ -113,15 +112,14 @@ FindSignificantEdgesForHop <- function(geneSet, combinedNetwork, hopConstraint, 
                                                     pValues = pValues, 
                                                     startingNodes = gene,
                                                     nodesToExclude = c(),
-                                                    startFromTF = FALSE, 
                                                     verbose = verbose,
                                                     topX = topX)
     
     # Set the starting and excluded set for the next hop.
-    startingNodes <- unique(subnetwork1Hop$tf)
+    startingNodes <- unique(subnetwork1Hop$)
     topXNew <- NULL
     if(!is.null(topX)){
-      topXNew <- topX * length(startingNodes)
+      topXNew <- topX * length(startingNodes <- unique(c(subnetwork1Hop[,1], subnetwork1Hop[,2])))
     }
     excludedSubset <- gene
     
@@ -145,7 +143,7 @@ FindSignificantEdgesForHop <- function(geneSet, combinedNetwork, hopConstraint, 
                                                         pValues = pValues, 
                                                         startingNodes = startingNodes,
                                                         nodesToExclude = excludedSubset,
-                                                        startFromTF = TRUE, 
+                                                     
                                                         verbose = verbose,
                                                         topX = topXNew)
         
@@ -164,14 +162,13 @@ FindSignificantEdgesForHop <- function(geneSet, combinedNetwork, hopConstraint, 
         subnetworkHops <- SignificantBreadthFirstSearch(networks = combinedNetwork, 
                                                         pValues = pValues, 
                                                         startingNodes = startingNodes,
-                                                        nodesToExclude = excludedSubset,
-                                                        startFromTF = FALSE, 
+                                                        nodesToExclude = excludedSubset, 
                                                         verbose = verbose, 
                                                         topX = topXNew)
         
         # Set the starting and excluded set for the next hop.
         excludedSubset <- c(excludedSubset, startingNodes)
-        startingNodes <- setdiff(unique(subnetworkHops$tf), excludedSubset)
+        startingNodes <- setdiff(unique(subnetworkHops<- unique(c(subnetwork1Hop[,1], subnetwork1Hop[,2]))), excludedSubset)
         if(!is.null(topX)){
           topXNew <- topX * length(startingNodes)
         }
@@ -194,49 +191,29 @@ FindSignificantEdgesForHop <- function(geneSet, combinedNetwork, hopConstraint, 
 #' Find all significant edges adjacent to the starting nodes, excluding the nodes
 #' specified.
 #' @param networks A concatenation of n PANDA-like networks with the following format:
-#' tf,gene,score_net1, score_net2, ... , score_netn
-#' Edges must be specified as "tf__gene".
 #' @param pValues The p-values from the original network.
 #' @param startingNodes The list of nodes from which to start.
 #' @param nodesToExclude The list of nodes to exclude from the search.
-#' @param startFromTF Whether to start from transcription factors (TRUE) or genes (FALSE).
 #' @param verbose Whether or not to print detailed information about the run.
 #' @param topX Select the X lowest significant p-values for each gene. NULL by default.
 #' @returns A bipartite subnetwork in the same format as the original networks.
 SignificantBreadthFirstSearch <- function(networks, pValues, startingNodes,
-                                          nodesToExclude, startFromTF, 
+                                          nodesToExclude, 
                                           verbose = FALSE, topX = NULL){
   # Check that provided nodes overlap with the networks.
-  if((length(setdiff(startingNodes, networks$tf)) > 0 && startFromTF == TRUE) ||
-     (length(setdiff(startingNodes, networks$gene)) > 0 && startFromTF == FALSE)){
-    stop("ERROR: Starting nodes do not overlap with network nodes")
-  }
-  if(length(setdiff(nodesToExclude, c(networks$tf, networks$gene))) > 0){
-    stop("ERROR: List of nodes to exclude does not overlap with network nodes")
-  }
-  if(length(intersect(startingNodes, nodesToExclude)) > 0){
-    stop("ERROR: Starting nodes cannot overlap with nodes to exclude")
-  }
+  if((length(setdiff(startingNodes, c(networks[,1],networks[,2])) > 0)){
   
   # Identify genes and transcription factors to test, based on which of these we are
   # starting from.
-  tfsToTest <- c()
-  genesToTest <- c()
-  if(startFromTF == TRUE){
-    tfsToTest <- startingNodes
-    genesToTest <- setdiff(unique(networks$gene), nodesToExclude)
-  }else{
-    genesToTest <- startingNodes
-    tfsToTest <- setdiff(unique(networks$tf), nodesToExclude)
-  }
+ genesToTest <- setdiff(unique(c(networks[,1],networks[,2]), nodesToExclude)
   
   # Construct all edges to test based on the combination of these.
-  geneLongList <- rep(genesToTest, length(tfsToTest))
-  tfLongList <- unlist(lapply(tfsToTest, function(tf){
-    return(rep(tf, length(genesToTest)))
-  }))
-  allPossibleEdges <- paste(tfLongList, geneLongList, sep = "__")
-  allEdges <- intersect(allPossibleEdges, rownames(networks))
+  srcGeneLongList <- rep(genesToTest, length(genesToTest))
+tgtGeneLongList <- unlist(lapply(genesToTest, function(gene){
+  return(rep(gene, length(genesToTest)))
+}))
+allPossibleEdges <- paste(srcGeneLongList, tgtGeneLongList, sep = "__")
+allEdges <- intersect(allPossibleEdges, rownames(networks))
   
   # For each edge, measure its significance.
   subnetwork <- networks
@@ -265,7 +242,6 @@ SignificantBreadthFirstSearch <- function(networks, pValues, startingNodes,
 #' @param subnetworks A list of bipartite (PANDA-like) subnetworks for each gene, 
 #' containing only the significant edges meeting the hop count criteria and
 #' where each network is a data frame with the following format:
-#' tf,gene
 #' @param verbose Whether or not to print detailed information about the run.
 #' @returns A bipartite subnetwork in the same format as the original networks.
 FindConnectionsForAllHopCounts <- function(subnetworks, verbose = FALSE){
@@ -280,7 +256,7 @@ FindConnectionsForAllHopCounts <- function(subnetworks, verbose = FALSE){
         # Get the subnetworks for the number of hops of interest.
         gene1 <- names(subnetworks)[i]
         gene2 <- names(subnetworks)[j]
-        connectingSubnetwork <- data.frame(tf = NA, gene = NA)[0,]
+        connectingSubnetwork <- data.frame(source = NA, target = NA)[0,]
         
         # If there were no edges at this hop count for one or both genes,
         # do not evaluate.
@@ -289,10 +265,10 @@ FindConnectionsForAllHopCounts <- function(subnetworks, verbose = FALSE){
           subnetwork2 <- subnetworks[[gene2]][[hops]]
           
           # Initialize overlapping subnetwork.
-          genesToRecurse1 <- c()
-          genesToRecurse2 <- c()
-          tfsToRecurse1 <- c()
-          tfsToRecurse2 <- c()
+          sourceToRecurse1 <- c()
+          sourceToRecurse2 <- c()
+          targetToRecurse1 <- c()
+          targetToRecurse2 <- c()
           
           # If the number of hops is even, add edges from genes that overlap
           # If the number of hops is odd, add edges from transcription factors that overlap.
@@ -314,8 +290,8 @@ FindConnectionsForAllHopCounts <- function(subnetworks, verbose = FALSE){
             }
             whichSubnet1TF <- which(subnetwork1$tf %in% overlappingTF)
             whichSubnet2TF <- which(subnetwork2$tf %in% overlappingTF)
-            genesToRecurse1 <- unique(subnetwork1[whichSubnet1TF, "gene"])
-            genesToRecurse2 <- unique(subnetwork2[whichSubnet2TF, "gene"])
+            genesToRecurse1 <- unique(subnetwork1[whichSubnet1TF, [,2]])
+            genesToRecurse2 <- unique(subnetwork2[whichSubnet2TF, [,2]])
             connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichSubnet1TF,],
                                           subnetwork2[whichSubnet2TF,])
           }
@@ -335,15 +311,7 @@ FindConnectionsForAllHopCounts <- function(subnetworks, verbose = FALSE){
                 tfsToRecurse2 <- unique(subnetwork2[whichTFConnectedToGene2, "tf"])
                 connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichTFConnectedToGene1,],
                                               subnetwork2[whichTFConnectedToGene2,])
-              }else{
-                whichGeneConnectedToTF1 <- which(subnetwork1$tf %in% tfsToRecurse1)
-                whichGeneConnectedToTF2 <- which(subnetwork2$tf %in% tfsToRecurse2)
-                genesToRecurse1 <- unique(subnetwork1[whichGeneConnectedToTF1, "gene"])
-                genesToRecurse2 <- unique(subnetwork2[whichGeneConnectedToTF2, "gene"])
-                connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichGeneConnectedToTF1,],
-                                              subnetwork2[whichGeneConnectedToTF2,])
-              }
-            }
+              }            }
           }
         }
         
