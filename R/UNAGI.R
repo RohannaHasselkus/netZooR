@@ -365,6 +365,7 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
     whichFirstEdge <- which(compositeSubnetworkEdges == edge)[1]
     return(compositeSubnetwork[whichFirstEdge,])
   }))
+  print(uniqueEdges)
   rownames(compositeSubnetworkDedup) <- uniqueEdges
   
   # Remove all genes connected to a single transcription factor. These genes were
