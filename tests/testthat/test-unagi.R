@@ -7,26 +7,26 @@ test_that("[UNAGI] SignificantBreadthFirstSearchU() function yields expected res
   # Here, we expect genes A and B to be connected after 1 hop via TF2, genes A and D
   # to be connected after 1 hop via TF3, and genes A and C to be connected after 2
   # hops via TF4.
-  startingNetwork <- data.frame(gene = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
-                           gene = c(rep("geneA", 4), rep("geneB", 4), rep("geneC", 4), rep("geneD", 4)),
+  startingNetwork <- data.frame(source = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
+                                target = c(rep("geneA", 4), rep("geneB", 4), rep("geneC", 4), rep("geneD", 4)),
                            score = c(-3, 3, 5, -5, 0, 4, 0.0005, -0.5, 0, 0.0005, -1, 4, 0.0005, -2, 5, 3))
-  addedNoise1 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise1 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                         rep("geneB", 100),
                                                         rep("geneC", 100),
                                                         rep("geneD", 100)),
                             score = stats::rnorm(400) / 1000)
-  addedNoise2 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise2 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
                             score = stats::rnorm(400) / 10000)
-  addedNoise3 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise3 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
                             score = stats::rnorm(400) / 10000)
   fullNetwork1 <- rbind(startingNetwork, addedNoise1)
-  rownames(fullNetwork1) <- paste(fullNetwork1$gene, fullNetwork1$gene, sep = "__")
+  rownames(fullNetwork1) <- paste(fullNetwork1$source, fullNetwork1$target, sep = "__")
   
   # Create a set of networks close to the original.
   fullNetworks <- fullNetwork1
@@ -36,49 +36,66 @@ test_that("[UNAGI] SignificantBreadthFirstSearchU() function yields expected res
   # Use all combined scores as the null distribution.
   null <- stats::rnorm(n = nrow(fullNetworks) * 3) / 100
   
-  # Calculate the p-values.
-  pvalues <- CalculatePValues(network = fullNetworks, pValueChunks = 2,
-                              nullDistribution = null, verbose = TRUE)
-  whichSig <- which(pvalues < 0.1)
-  significantEdges <- rownames(fullNetworks)[whichSig]
-  subnetwork <- fullNetworks[significantEdges, c(1:2)]
-  pvalues = pvalues[significantEdges]
-  
   # Test that errors are thrown when appropriate.
-  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, pValues = pvalues,
+  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork,
                                              startingNodes = c("blob", "fish"),
-                                             nodesToExclude = c(), startFromTF = TRUE),
+                                             nodesToExclude = c()),
                "ERROR: Starting nodes do not overlap with network nodes")
-  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, pValues = pvalues,
-                                             startingNodes = c("geneA", "geneB"),
-                                             nodesToExclude = c(), startFromTF = TRUE),
-               "ERROR: Starting nodes do not overlap with network nodes")
-  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, pValues = pvalues,
+  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, 
                                              startingNodes = c("gene1", "gene2"),
-                                             nodesToExclude = c(), startFromTF = FALSE),
+                                             nodesToExclude = c()),
                "ERROR: Starting nodes do not overlap with network nodes")
-  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, pValues = pvalues,
+  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, 
                                              startingNodes = c("geneA", "geneB", "geneC"),
-                                             nodesToExclude = c("blob", "fish"), startFromTF = FALSE),
+                                             nodesToExclude = c("blob", "fish")),
                "ERROR: List of nodes to exclude does not overlap with network nodes")
-  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, pValues = pvalues,
+  expect_error(SignificantBreadthFirstSearchU(networks = subnetwork, 
                                              startingNodes = c("geneA", "geneB", "geneC"),
-                                             nodesToExclude = c("geneA", "geneB"), startFromTF = FALSE),
+                                             nodesToExclude = c("geneA", "geneB")),
                "ERROR: Starting nodes cannot overlap with nodes to exclude")
   
   # Ensure that, when starting from genes A, B, and C, we obtain the correct values.
   expect_true(length(setdiff(c("gene2__geneA", "gene2__geneB", "gene3__geneA", "gene4__geneC"),
-                      rownames(SignificantBreadthFirstSearchU(networks = subnetwork, pValues = pvalues,
+                      rownames(SignificantBreadthFirstSearchU(networks = subnetwork,
                                                   startingNodes = c("geneA", "geneB", "geneC"),
-                                                  nodesToExclude = c(), startFromTF = FALSE)))) == 0)
+                                                  nodesToExclude = c())))) == 0)
   
-  # Ensure that, when starting from transcription factors TF2, TF3, and TF4 and removing genes A, B, and C, we obtain the correct values.
+  # Ensure that, when starting from genes gene2, gene3, and gene4 and removing genes A, B, and C, we obtain the correct values.
   expect_true(length(setdiff(c("gene3__geneD", "gene4__geneD"),
-                             rownames(SignificantBreadthFirstSearchU(networks = subnetwork, pValues = pvalues,
+                             rownames(SignificantBreadthFirstSearchU(networks = subnetwork,
                                                                     startingNodes = c("gene2", "gene3", "gene4"),
-                                                                    nodesToExclude = c("geneA", "geneB", "geneC"), 
-                                                                    startFromTF = TRUE)))) == 0)
+                                                                    nodesToExclude = c("geneA", "geneB", "geneC"))))) == 0)
+  
+  # Unipartite structure.
+  startingNetwork <- data.frame(source = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
+                                target = c(rep("geneA", 4), rep("geneB", 4), rep("geneC", 4), rep("geneD", 4)),
+                                score = c(-3, 3, 5, -5, 0, 4, 0.0005, -0.5, 0, 0.0005, -1, 4, 0.0005, -2, 5, 3))
+  addedNoise1 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
+                                                               rep("geneB", 100),
+                                                               rep("geneC", 100),
+                                                               rep("geneD", 100)),
+                            score = stats::rnorm(400) / 1000)
+  
+  geneANetHop1 <- data.frame(gene = c("gene2", "gene3","geneB"), gene = c("geneA", "geneA", "geneA"))
+  geneBNetHop1 <- data.frame(gene = "gene2", gene = "geneB")
+  geneCNetHop1 <- data.frame(gene = c("gene4","geneD"), gene = c("geneC", "geneC"))
+  geneDNetHop1 <- data.frame(gene = c("gene3", "gene4"), gene = c("geneD", "geneD"))
+  gene2NetHop1 <- data.frame(gene = c("geneA", "geneB", "gene3"), gene=c("gene2", "gene2", "gene2"))
+  geneANetHop2 <- rbind(geneBNetHop1, geneDNetHop1[1,])
+  geneBNetHop2 <- geneANetHop1[1,]
+  geneCNetHop2 <- geneDNetHop1[2,]
+  geneDNetHop2 <- rbind(geneANetHop1[2,], geneCNetHop1)
+  geneANetHop3 <- geneDNetHop1[2,]
+  geneBNetHop3 <- geneANetHop1[2,]
+  geneCNetHop3 <- geneDNetHop1[1,]
+  geneDNetHop3 <- geneANetHop1[1,]
+  
+  subnetworks <- list(geneA = list(geneANetHop1, geneANetHop2, geneANetHop3),
+                      geneB = list(geneBNetHop1, geneBNetHop2, geneBNetHop3),
+                      geneC = list(geneCNetHop1, geneCNetHop2, geneCNetHop3),
+                      geneD = list(geneDNetHop1, geneDNetHop2, geneDNetHop3))
 })
+  
 test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected results", {
   
   # Set up the subnetwork from the previous example.
@@ -100,19 +117,32 @@ test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected re
                       geneD = list(geneDNetHop1, geneDNetHop2, geneDNetHop3))
   
   # Obtain the overlaps for 1, 2, and 3 hops.
-  expect_equal(rownames(FindConnectionsForAllHopCountsU(subnetworks)), 
-              c("gene2__geneA", "gene2__geneB", "gene3__geneA", "gene3__geneD", "gene4__geneC", "gene4__geneD"))
+  result <- FindConnectionsForAllHopCountsU(subnetworks)
+  
+  if (is.data.frame(result) || is.matrix(result)) {
+    expect_equal(rownames(result), 
+                 c("gene2__geneA", "gene2__geneB", "gene3__geneA", 
+                   "gene3__geneD", "gene4__geneC", "gene4__geneD"))
+  } else {
+    stop("Error: FindConnectionsForAllHopCountsU did not return a data frame or matrix.")
+  }
   
   # Obtain the overlaps for only the first two hops, for only A and C.
   subnetworks <- list(geneA = list(geneANetHop1, geneANetHop2),
                       geneC = list(geneCNetHop1, geneCNetHop2))
-  expect_equal(rownames(FindConnectionsForAllHopCountsU(subnetworks)), 
-               c("gene3__geneA", "gene3__geneD", "gene4__geneC", "gene4__geneD"))
+  result <- FindConnectionsForAllHopCountsU(subnetworks)
+  
+  if (is.data.frame(result) || is.matrix(result)) {
+    expect_equal(rownames(result), 
+                 c("gene3__geneA", "gene3__geneD", "gene4__geneC", "gene4__geneD"))
+  } else {
+    stop("Error: FindConnectionsForAllHopCountsU did not return a data frame or matrix.")
+  }
 })
-test_that("[UNAGI] FindSignificantEdgesForHopU() function yields expected results",{
+test_that("[UNAGI] FindSignificantEdgesforhopU() function yields expected results",{
   
   # Construct a starting network, which will be modified.
-  # Here, we expect genes A and B to be connected after 1 hop via TF2, genes A and D
+  # Here, we expect genes A and B to be connected after 1 hop via gene2, genes A and D
   # to be connected after 1 hop via TF3, and genes A and C to be connected after 2
   # hops via TF4.
   startingNetwork <- data.frame(gene = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
@@ -143,14 +173,6 @@ test_that("[UNAGI] FindSignificantEdgesForHopU() function yields expected result
   
   #  Null distribution is a narrower version of the normal distribution.
   null <- rnorm(n = nrow(fullNetworks) * 3) / 100
-  
-  # Calculate the p-values.
-  pvalues <- CalculatePValues(network = fullNetworks, pValueChunks = 2,
-                              nullDistribution = null, verbose = TRUE)
-  whichSig <- which(pvalues < 0.1)
-  significantEdges <- rownames(fullNetworks)[whichSig]
-  subnetwork <- fullNetworks[significantEdges, c(1:2)]
-  pvalues = pvalues[significantEdges]
   
   # Set up the subnetwork from the previous example.
   geneANetHop1 <- data.frame(gene = c("gene2", "gene3"), gene = c("geneA", "geneA"))
@@ -183,8 +205,8 @@ test_that("[UNAGI] FindSignificantEdgesForHopU() function yields expected result
                       geneD = list(geneDNetHop1, geneDNetHop2, geneDNetHop3))
   
   # Test method with all genes as input.
-  sigEdges <- FindSignificantEdgesForHopU(geneSet = c("geneA", "geneB", "geneC", "geneD"),
-                                         combinedNetwork = subnetwork, pValues = pvalues,
+  sigEdges <- FindSignificantEdgesforhopU(geneSet = c("geneA", "geneB", "geneC", "geneD"),
+                                         combinedNetwork = subnetwork,
                                          hopConstraint = 3)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[1]]), rownames(sigEdges$geneA[[1]]))) == 0)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[2]]), rownames(sigEdges$geneA[[2]]))) == 0)
@@ -200,7 +222,7 @@ test_that("[UNAGI] FindSignificantEdgesForHopU() function yields expected result
   expect_true(length(setdiff(rownames(subnetworksFull$geneD[[3]]), rownames(sigEdges$geneD[[3]]))) == 0)
   
   # Test method with only genes A, B, C.
-  sigEdges <- FindSignificantEdgesForHopU(geneSet = c("geneA", "geneB", "geneC"),
+  sigEdges <- FindSignificantEdgesforhopU(geneSet = c("geneA", "geneB", "geneC"),
                                           combinedNetwork = subnetwork, hopConstraint = 3)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[1]]), rownames(sigEdges$geneA[[1]]))) == 0)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[2]]), rownames(sigEdges$geneA[[2]]))) == 0)
@@ -213,7 +235,7 @@ test_that("[UNAGI] FindSignificantEdgesForHopU() function yields expected result
   expect_true(length(setdiff(rownames(subnetworksFull$geneC[[3]]), rownames(sigEdges$geneC[[3]]))) == 0)
   
   # Test method with only genes A and C.
-  sigEdges <- FindSignificantEdgesForHopU(geneSet = c("geneA", "geneC"),
+  sigEdges <- FindSignificantEdgesforhopU(geneSet = c("geneA", "geneC"),
                                           combinedNetwork = subnetwork,
                                           hopConstraint = 3)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[1]]), rownames(sigEdges$geneA[[1]]))) == 0)
@@ -223,32 +245,32 @@ test_that("[UNAGI] FindSignificantEdgesForHopU() function yields expected result
   expect_true(length(setdiff(rownames(subnetworksFull$geneC[[2]]), rownames(sigEdges$geneC[[2]]))) == 0)
   expect_true(length(setdiff(rownames(subnetworksFull$geneC[[3]]), rownames(sigEdges$geneC[[3]]))) == 0)
 })
-test_that("[UNAGI] BuildSubnetwork() function yields expected results",{
+test_that("[UNAGI] BuildSubnetworkU() function yields expected results",{
   
   # Construct a starting network, which will be modified.
   # Here, we expect genes A and B to be connected after 1 hop via TF2, genes A and D
   # to be connected after 1 hop via TF3, and genes A and C to be connected after 2
   # hops via TF4.
-  startingNetwork <- data.frame(gene = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
-                                gene = c(rep("geneA", 4), rep("geneB", 4), rep("geneC", 4), rep("geneD", 4)),
+  startingNetwork <- data.frame(source = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
+                                target = c(rep("geneA", 4), rep("geneB", 4), rep("geneC", 4), rep("geneD", 4)),
                                 score = c(-3, 3, 5, -5, 0, 4, 0.0005, -0.5, 0, 0.0005, -1, 4, 0.0005, -2, 5, 3))
-  addedNoise1 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise1 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
                             score = stats::rnorm(400) / 10000)
-  addedNoise2 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise2 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
                             score = stats::rnorm(400) / 10000)
-  addedNoise3 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise3 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
                             score = stats::rnorm(400) / 1000)
   fullNetwork1 <- rbind(startingNetwork, addedNoise1)
-  rownames(fullNetwork1) <- paste(fullNetwork1$gene, fullNetwork1$gene, sep = "__")
+  rownames(fullNetwork1) <- paste(fullNetwork1$source, fullNetwork1$target, sep = "__")
   
   # Create a set of networks close to the original.
   fullNetwork2 <- fullNetwork1
@@ -264,17 +286,17 @@ test_that("[UNAGI] BuildSubnetwork() function yields expected results",{
   # Null distribution is a narrower version of the normal distribution.
   null <- rnorm(n = nrow(combinedNetwork) * 3) / 100
   
-  # Verify that FindConnectionsForAllHopCountsU() and FindSignificantEdgesForHopU() are
+  # Verify that FindConnectionsForAllHopCountsU() and FindSignificantEdgesforhopU() are
   # working in tandem.
   # Obtain the overlaps for 1, 2, and 3 hops.
   expect_true(length(setdiff(c("gene2__geneA", "gene2__geneB", "gene3__geneA", "gene3__geneD", "gene4__geneC", "gene4__geneD"),
-                             rownames(BuildSubnetwork(geneSet = c("geneA", "geneB", "geneC", "geneD"),
+                             rownames(BuildSubnetworkU(geneSet = c("geneA", "geneB", "geneC", "geneD"),
                                         networks = list(fullNetwork1, fullNetwork2, fullNetwork3), 
                                         alpha = 0.1, hopConstraint = 4, nullDistribution = null)))) == 0)
   
   # Obtain the overlaps for only the first two hops, for only A and C.
   expect_true(length(setdiff(c("gene3__geneA", "gene3__geneD", "gene4__geneC", "gene4__geneD"),
-                             rownames(BuildSubnetwork(geneSet = c("geneA", "geneC"),
+                             rownames(BuildSubnetworkU(geneSet = c("geneA", "geneC"),
                                                       networks = list(fullNetwork1, fullNetwork2, fullNetwork3), 
                                                       alpha = 0.1, hopConstraint = 4, nullDistribution = null)))) == 0)
 })
