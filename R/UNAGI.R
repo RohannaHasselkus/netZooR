@@ -15,7 +15,7 @@
 RunUNAGI <- function(nodeSet, network, alpha, hopConstraint,
                      verbose = FALSE, topX=NULL) {
   # === SAME AS BLOBFISH ===
-  # Check for invalid inputs.
+  # Check for invalid inputs.;;;;
   if (!is.character(nodeSet) || !is.data.frame(network) || !is.numeric(alpha)) {
     stop("nodeSet must be character, network must be data frame, alpha must be numeric")
   } else if (!all(c("node1", "node2", "score") %in% colnames(network))) {
@@ -94,7 +94,7 @@ BuildUnipartiteClusters <- function(sigEdges, nodeSet, verbose = FALSE) {
 #' saved and need to be recalculated.
 #' Default is FALSE.
 #' @returns A  unipartite subnetwork in the same format as the original networks.
-BuildSubnetwork <- function(geneSet, networks, alpha, hopConstraint, nullDistribution,
+BuildSubnetworkU <- function(geneSet, networks, alpha, hopConstraint, nullDistribution,
                             verbose = FALSE, topX = NULL, doFDRAdjustment = TRUE){
   
   # Name edges for each network.
@@ -223,7 +223,7 @@ FindSignificantEdgesForHopU <- function(geneSet, combinedNetwork, hopConstraint,
 
 #' Find all significant edges adjacent to the starting nodes, excluding the nodes
 #' specified.
-#' @param networks A concatenation of n PANDA-like networks with the following format:
+#' @param networks A PANDA-like network
 #' @param startingNodes The list of nodes from which to start.
 #' @param nodesToExclude The list of nodes to exclude from the search.
 #' @param verbose Whether or not to print detailed information about the run.
@@ -231,44 +231,54 @@ FindSignificantEdgesForHopU <- function(geneSet, combinedNetwork, hopConstraint,
 SignificantBreadthFirstSearchU <- function(networks, startingNodes,
                                            nodesToExclude,
                                            verbose = FALSE, topX = NULL){
+
   # Check that provided nodes overlap with the networks.
   if(length(setdiff(startingNodes, c(networks[,1], networks[,2]))) > 0){
+    stop("ERROR: Starting nodes do not overlap with network nodes")
+  }
+  if(length(setdiff(nodesToExclude, c(networks[,1], networks[,2]))) > 0){
+    stop("ERROR: List of nodes to exclude does not overlap with network nodes")
+  }
+  if(length(intersect(startingNodes, nodesToExclude)) > 0){
+    stop("ERROR: Starting nodes cannot overlap with nodes to exclude")
+  }
+  
+  
+  # Identify genes and transcription factors to test, based on which of these we are
+  # starting from.
+  genesToTest <- setdiff(unique(c(networks[,1],networks[,2])), nodesToExclude)
+  
+  # Construct all edges to test based on the combination of these.
+  srcGeneLongList <- rep(genesToTest, length(genesToTest))
+  tgtGeneLongList <- unlist(lapply(genesToTest, function(gene){
+    return(rep(gene, length(genesToTest)))
+  }))
+  subnetwork <- networks[
+    (networks$node1 %in% startingNodes | networks$node2 %in% startingNodes) &
+      !(networks$node1 %in% nodesToExclude | networks$node2 %in% nodesToExclude),
+    , ]
+  
+  # For each edge, measure its significance.
+  subnetwork <- networks
+  allEdges <- rownames(networks)
+  if(length(allEdges) > 0){
     
-    # Identify genes and transcription factors to test, based on which of these we are
-    # starting from.
-    genesToTest <- setdiff(unique(c(networks[,1],networks[,2]), nodesToExclude))
-    
-    # Construct all edges to test based on the combination of these.
-    srcGeneLongList <- rep(genesToTest, length(genesToTest))
-    tgtGeneLongList <- unlist(lapply(genesToTest, function(gene){
-      return(rep(gene, length(genesToTest)))
-    }))
-    subnetwork <- networks[
-      (networks$node1 %in% startingNodes | networks$node2 %in% startingNodes) &
-        !(networks$node1 %in% nodesToExclude | networks$node2 %in% nodesToExclude),
-      , ]
-    
-    # For each edge, measure its significance.
-    subnetwork <- networks
-    if(length(allEdges) > 0){
-      
-      # If topX is specified, filter again.
-      significantEdges <- allEdges
-      if(!is.null(topX) && length(allEdges) > topX){
-        whichTopX <- order(allEdges)[1:topX]
-        significantEdges <- allEdges[whichTopX]
-      }
-      
-      # Return the edges meeting alpha.
-      subnetwork <- networks[significantEdges, c(1:2)]
-      if(verbose == TRUE){
-        message(paste("Retained", length(significantEdges), "edges"))
-      }
+    # If topX is specified, filter again.
+    significantEdges <- allEdges
+    if(!is.null(topX) && length(allEdges) > topX){
+      whichTopX <- order(allEdges)[1:topX]
+      significantEdges <- allEdges[whichTopX]
     }
     
-    # Return the subnetwork.
-    return(subnetwork)
+    # Return the edges meeting alpha.
+    subnetwork <- networks[significantEdges, c(1:2)]
+    if(verbose == TRUE){
+      message(paste("Retained", length(significantEdges), "edges"))
+    }
   }
+  
+  # Return the subnetwork.
+  return(subnetwork)
 }
 
 
@@ -299,10 +309,8 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
           subnetwork2 <- subnetworks[[gene2]][[hops]]
           
           # Initialize overlapping subnetwork.
-          sourceToRecurse1 <- c()
-          sourceToRecurse2 <- c()
-          targetToRecurse1 <- c()
-          targetToRecurse2 <- c()
+          geneToRecurse1 <- c()
+          geneToRecurse2 <- c()
           
           # If the number of hops is even, add edges from genes that overlap
           # If the number of hops is odd, add edges from transcription factors that overlap.
@@ -317,17 +325,6 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
             geneToRecurse2 <- unique(subnetwork2[whichSubnet2Gene, "2"])
             connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichSubnet1Gene,],
                                           subnetwork2[whichSubnet2Gene,])
-          }else{
-            overlappinggene <- intersect(subnetwork1[,2], subnetwork2[,2])
-            if(verbose == TRUE){
-              message(paste("Hop", hops, "-", length(overlappingTF), "overlapped between", gene1, "and", gene2))
-            }
-            whichSubnet1TF <- which(subnetwork1[,2] %in% overlappinggene)
-            whichSubnet2TF <- which(subnetwork2[,2] %in% overlappinggene)
-            genesToRecurse1 <- unique(subnetwork1[whichSubnet1gene,2])
-            genesToRecurse2 <- unique(subnetwork2[whichSubnet2gene,2])
-            connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichSubnet1TFgene,],
-                                          subnetwork2[whichSubnet2TF,])
           }
           
           # Recurse back over the number of hops.
@@ -339,12 +336,10 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
               # If the current number of hops is even, add edges from genes connected to genes of interest.
               # If the current number of hops is odd, add edges from genes connected to genes of interest.
               if(hop %% 2 == 0){
-                whichgeneConnectedToGene1 <- which(subnetwork1[,1] %in% genesToRecurse1)
-                whichgeneConnectedToGene2 <- which(subnetwork2[,1] %in% genesToRecurse2)
-                tfsToRecurse1 <- unique(subnetwork1[whichTFConnectedToGene1, "2"])
-                tfsToRecurse2 <- unique(subnetwork2[whichTFConnectedToGene2, "2"])
-                connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichgeneConnectedToGene1,],
-                                              subnetwork2[whichgeneConnectedToGene2,])
+                whichGeneConnectedToGene1 <- which(subnetwork1[,1] %in% geneToRecurse1)
+                whichGeneConnectedToGene2 <- which(subnetwork2[,1] %in% geneToRecurse2)
+                connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichGeneConnectedToGene1,],
+                                              subnetwork2[whichGeneConnectedToGene2,])
               }}
           }
         }
