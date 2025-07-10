@@ -1,6 +1,5 @@
 # unit-tests for UNAGI
 context("test UNAGI functions")
-
 test_that("[UNAGI] SignificantBreadthFirstSearchU() function yields expected results", {
   
   # Construct a starting network, which will be modified.
@@ -95,22 +94,22 @@ test_that("[UNAGI] SignificantBreadthFirstSearchU() function yields expected res
                       geneC = list(geneCNetHop1, geneCNetHop2, geneCNetHop3),
                       geneD = list(geneDNetHop1, geneDNetHop2, geneDNetHop3))
 })
-  
 test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected results", {
   
   # Set up the subnetwork from the previous example.
-  geneANetHop1 <- data.frame(gene = c("gene2", "gene3"), gene = c("geneA", "geneA"))
-  geneBNetHop1 <- data.frame(gene = "gene2", gene = "geneB")
-  geneCNetHop1 <- data.frame(gene = "gene4", gene = "geneC")
-  geneDNetHop1 <- data.frame(gene = c("gene3", "gene4"), gene = c("geneD", "geneD"))
-  geneANetHop2 <- rbind(geneBNetHop1, geneDNetHop1[1,])
-  geneBNetHop2 <- geneANetHop1[1,]
-  geneCNetHop2 <- geneDNetHop1[2,]
-  geneDNetHop2 <- rbind(geneANetHop1[2,], geneCNetHop1)
-  geneANetHop3 <- geneDNetHop1[2,]
-  geneBNetHop3 <- geneANetHop1[2,]
-  geneCNetHop3 <- geneDNetHop1[1,]
-  geneDNetHop3 <- geneANetHop1[1,]
+  geneANetHop1 <- data.frame(source = c("geneA", "geneA"), target = c("gene2", "gene3"))
+  geneBNetHop1 <- data.frame(source = "geneB", target = "gene2")
+  geneCNetHop1 <- data.frame(source = "geneC", target = "gene4")
+  geneDNetHop1 <- data.frame(source = c("geneD", "geneD"), target = c("gene3", "gene4"))
+  geneANetHop2 <- data.frame(source = c("gene2", "gene3"), target = c("geneB", "geneD"))
+  geneBNetHop2 <- data.frame(source = "gene2", target = "geneA")
+  geneCNetHop2 <- data.frame(source = "gene4", target = "geneD")
+  geneDNetHop2 <- data.frame(source = c("gene3", "gene4"), target = c("geneA", "geneC"))
+  geneANetHop3 <- data.frame(source = "geneD", target = "gene4")
+  geneBNetHop3 <- data.frame(source = "geneA", target = "gene3")
+  geneCNetHop3 <- data.frame(source = "geneD", target = "gene3")
+  geneDNetHop3 <- data.frame(source = "geneA", target = "gene2")
+  
   subnetworks <- list(geneA = list(geneANetHop1, geneANetHop2, geneANetHop3),
                       geneB = list(geneBNetHop1, geneBNetHop2, geneBNetHop3),
                       geneC = list(geneCNetHop1, geneCNetHop2, geneCNetHop3),
@@ -134,7 +133,7 @@ test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected re
   
   if (is.data.frame(result) || is.matrix(result)) {
     expect_equal(rownames(result), 
-                 c("gene3__geneA", "gene3__geneD", "gene4__geneC", "gene4__geneD"))
+                 c("geneA__gene3", "gene3__geneD", "geneC__gene4", "gene4__geneD"))
   } else {
     stop("Error: FindConnectionsForAllHopCountsU did not return a data frame or matrix.")
   }
