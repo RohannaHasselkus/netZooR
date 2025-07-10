@@ -18,8 +18,8 @@ RunUNAGI <- function(nodeSet, network, alpha, hopConstraint,
   # Check for invalid inputs.;;;;
   if (!is.character(nodeSet) || !is.data.frame(network) || !is.numeric(alpha)) {
     stop("nodeSet must be character, network must be data frame, alpha must be numeric")
-  } else if (!all(c("node1", "node2", "score") %in% colnames(network))) {
-    stop("Network must have columns: node1, node2, score")
+  } else if (!all(c("source", "target", "score") %in% colnames(network))) {
+    stop("Network must have columns: source, target, score")
   } else if (alpha > 1 || alpha <= 0) {
     stop("alpha must be between 0 and 1, not including 0")
   }
@@ -37,8 +37,8 @@ BuildUnipartiteClusters <- function(sigEdges, nodeSet, verbose = FALSE) {
   clusterID <- 1
   
   for (i in 1:nrow(sigEdges)) {
-    n1 <- sigEdges$node1[i]
-    n2 <- sigEdges$node2[i]
+    n1 <- sigEdges$source[i]
+    n2 <- sigEdges$target[i]
     
     in1 <- n1 %in% names(clusterMap)
     in2 <- n2 %in% names(clusterMap)
@@ -254,8 +254,8 @@ SignificantBreadthFirstSearchU <- function(networks, startingNodes,
     return(rep(gene, length(genesToTest)))
   }))
   subnetwork <- networks[
-    (networks$node1 %in% startingNodes | networks$node2 %in% startingNodes) &
-      !(networks$node1 %in% nodesToExclude | networks$node2 %in% nodesToExclude),
+    (networks$source %in% startingNodes | networks$target %in% startingNodes) &
+      !(networks$source %in% nodesToExclude | networks$target %in% nodesToExclude),
     , ]
   
   # For each edge, measure its significance.
@@ -301,31 +301,33 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
         gene1 <- names(subnetworks)[i]
         gene2 <- names(subnetworks)[j]
         connectingSubnetwork <- data.frame(source = NA, target = NA)[0,]
-        
+
         # If there were no edges at this hop count for one or both genes,
         # do not evaluate.
         if(length(subnetworks[[gene1]]) >= hops && length(subnetworks[[gene2]]) >= hops){
+
           subnetwork1 <- subnetworks[[gene1]][[hops]]
           subnetwork2 <- subnetworks[[gene2]][[hops]]
           
+          ###### Rohanna fill in
+          alreadyExploredGenes <- c()
+
           # Initialize overlapping subnetwork.
           geneToRecurse1 <- c()
           geneToRecurse2 <- c()
           
-          # If the number of hops is even, add edges from genes that overlap
-          # If the number of hops is odd, add edges from transcription factors that overlap.
-          if(hops %% 2 == 0){
-            overlappingGenes <- intersect(subnetwork1[,1], subnetwork2[,1])
-            if(verbose == TRUE){
-              message(paste("Hop", hops, "-", length(overlappingGenes), "overlapped between", gene1, "and", gene2))
-            }
-            whichSubnet1Gene <- which(subnetwork1[,1] %in% overlappingGenes)
-            whichSubnet2Gene <- which(subnetwork2[,1] %in% overlappingGenes)
-            geneToRecurse1 <- unique(subnetwork1[whichSubnet1Gene, "2"])
-            geneToRecurse2 <- unique(subnetwork2[whichSubnet2Gene, "2"])
-            connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichSubnet1Gene,],
-                                          subnetwork2[whichSubnet2Gene,])
+          # Add edges from genes that overlap.
+          overlappingGenes <- intersect(subnetwork1[,2], subnetwork2[,2])
+          if(verbose == TRUE){
+            message(paste("Hop", hops, "-", length(overlappingGenes), "overlapped between", gene1, "and", gene2))
           }
+          whichSubnet1Gene <- which(subnetwork1[,2] %in% overlappingGenes)
+          whichSubnet2Gene <- which(subnetwork2[,2] %in% overlappingGenes)
+          geneToRecurse1 <- unique(subnetwork1[whichSubnet1Gene, 1])
+          geneToRecurse2 <- unique(subnetwork2[whichSubnet2Gene, 1])
+          ####### Rohanna subset geneToRecurse1 and geneToRecurse2 to only include things not in the alreadyExploredGenes.
+          connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichSubnet1Gene,],
+                                        subnetwork2[whichSubnet2Gene,])
           
           # Recurse back over the number of hops.
           if(hops-1 >= 1){
@@ -334,16 +336,18 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
               subnetwork2 <- subnetworks[[gene2]][[hop]]
               
               # If the current number of hops is even, add edges from genes connected to genes of interest.
-              # If the current number of hops is odd, add edges from genes connected to genes of interest.
-              if(hop %% 2 == 0){
-                whichGeneConnectedToGene1 <- which(subnetwork1[,1] %in% geneToRecurse1)
-                whichGeneConnectedToGene2 <- which(subnetwork2[,1] %in% geneToRecurse2)
-                connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichGeneConnectedToGene1,],
-                                              subnetwork2[whichGeneConnectedToGene2,])
-              }}
+              whichGeneConnectedToGene1 <- which(subnetwork1[,2] %in% geneToRecurse1)
+              whichGeneConnectedToGene2 <- which(subnetwork2[,2] %in% geneToRecurse2)
+              ####### Rohanna add genesToRecurse to existing list of explored genes.
+              genesToRecurse1 <- unique(subnetwork1[whichGeneConnectedToGene1, 1])
+              genesToRecurse2 <- unique(subnetwork2[whichGeneConnectedToGene2, 1])
+              ####### Rohanna subset geneToRecurse1 and geneToRecurse2 to only include things not in the alreadyExploredGenes.
+              connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichGeneConnectedToGene1,],
+                                            subnetwork2[whichGeneConnectedToGene2,])
+            }
           }
         }
-        
+
         # Return the subnetwork, which should now contain all of the edges connecting the
         # gene pair at the prespecified number of hops.
         return(connectingSubnetwork)
@@ -356,31 +360,17 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
     # Bind together the subnetworks for each gene.
     return(do.call(rbind, geneSpecificHopCountSubnetwork))
   })
-  
   # Bind together the subnetworks for each hop count.
   compositeSubnetwork <- do.call(rbind, hopCountSubnetworks)
-  compositeSubnetworkEdges <- paste(compositeSubnetwork$node1, compositeSubnetwork$node2, sep = "__")
+  colnames(compositeSubnetwork) <- c("source", "target")
+  compositeSubnetworkEdges <- paste(compositeSubnetwork$source, compositeSubnetwork$target, sep = "__")
   uniqueEdges <- sort(unique(compositeSubnetworkEdges))
   compositeSubnetworkDedup <- do.call(rbind, lapply(uniqueEdges, function(edge){
     whichFirstEdge <- which(compositeSubnetworkEdges == edge)[1]
     return(compositeSubnetwork[whichFirstEdge,])
   }))
-  print(uniqueEdges)
   rownames(compositeSubnetworkDedup) <- uniqueEdges
   
-  # Remove all genes connected to a single transcription factor. These genes were
-  # added because they are regulated by a transcription factor that co-regulates
-  # two seed genes. Similarly, remove all transcription factors connected to a
-  # single gene.
-  geneCounts <- table(compositeSubnetworkDedup[,1])
-  geneCounts <- table(compositeSubnetworkDedup[,2])
-  genesToRemove <- names(geneCounts)[which(geneCounts == 1)]
-  genesToRemove <- setdiff(genesToRemove, names(subnetworks))
-  tfsToRemove <- names(tfCounts)[which(tfCounts == 1)]
-  compositeSubnetworkDedup <- compositeSubnetworkDedup[which(compositeSubnetworkDedup[,1] %in% setdiff(names(geneCounts),
-                                                                                                       genesToRemove)),]
-  compositeSubnetworkDedup <- compositeSubnetworkDedup[which(compositeSubnetworkDedup[,2] %in% setdiff(names(tfCounts),
-                                                                                                       tfsToRemove)),]
   return(compositeSubnetworkDedup)
 }
 
@@ -407,11 +397,11 @@ PlotNetworkU <- function(network, genesOfInterest,
                          vertexLabelOffset = 0.5, geneColorMapping = NULL){
   
   # Convert from factor to character.
-  network$node1 <- as.character(network$node1)
-  network$node2 <- as.character(network$node2)
+  network$source <- as.character(network$source)
+  network$target <- as.character(network$target)
   
   # Set the node attributes.
-  uniqueNodes <- unique(c(network$node1, network$node2))
+  uniqueNodes <- unique(c(network$source, network$target))
   nodeAttrs <- data.frame(node = uniqueNodes,
                           color = rep("gray", length(uniqueNodes)),
                           size = rep(nodeSize, length(uniqueNodes)),
@@ -437,13 +427,13 @@ PlotNetworkU <- function(network, genesOfInterest,
   # Add edge attributes.
   if(!is.null(geneColorMapping)){
     for(gene in rownames(geneColorMapping)){
-      network[which(network$node2 == 2), "color"] <- geneColorMapping[gene, "color"]
+      network[which(network$target == 2), "color"] <- geneColorMapping[gene, "color"]
     }
   }
   network$width <- edgeWidth
   # Create a graph object.
   graph <- igraph::graph_from_data_frame(network, vertices = nodeAttrs, directed = FALSE)
-  V(graph)$type <- V(graph)$name %in% network$node1
+  V(graph)$type <- V(graph)$name %in% network$source
   
   # Plot.
   labels <- V(graph)$name
