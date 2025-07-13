@@ -14,21 +14,26 @@
 #' @export
 RunUNAGI <- function(nodeSet, network, alpha, hopConstraint,
                      verbose = FALSE, topX=NULL) {
-  # === SAME AS BLOBFISH ===
-  # Check for invalid inputs.;;;;
-  if (!is.character(nodeSet) || !is.data.frame(network) || !is.numeric(alpha)) {
-    stop("nodeSet must be character, network must be data frame, alpha must be numeric")
-  } else if (!all(c("source", "target", "score") %in% colnames(network))) {
-    stop("Network must have columns: source, target, score")
-  } else if (alpha > 1 || alpha <= 0) {
+  #this entire body was edited Jul 13
+  if (!is.character(nodeSet) || !is.data.frame(network) || !is.numeric(alpha))
+    stop("Wrong input type! geneSet must be a character vector. networks must be a list.",
+         "alpha and hopConstraint must be scalar numeric values.")
+  if (!all(c("source", "target", "score") %in% colnames(network)))
+    stop("Each network must have transcription factors in the first column,",
+         "target genes in the second column, and scores in the third column.")
+  if (alpha <= 0 || alpha >= 1)
     stop("alpha must be between 0 and 1, not including 0")
-  }
   
-  # Build clusters using greedy growth
+  #significance filter
+  sigEdges <- network[, c("source", "target")]
+  rownames(sigEdges) <- paste(sigEdges$source, sigEdges$target, sep = "__")
+  
+  ##Build clusters exactly like BLOBFISH 
   clusters <- BuildUnipartiteClusters(sigEdges, nodeSet, verbose)
   
-  return(list(clusters = clusters, edges = sigEdges))
+  list(clusters = clusters, edges = sigEdges)
 }
+
 BuildUnipartiteClusters <- function(sigEdges, nodeSet, verbose = FALSE) {
   # === Analogy to BLOBFISH BuildSubnetwork + FindConnections ===
   
@@ -110,7 +115,11 @@ BuildSubnetworkU <- function(geneSet, networks, alpha, hopConstraint, nullDistri
       combinedNetwork[,2+i] <- networksNamed[[i]]$score
     }
   }
+ 
   
+  # Compute significance mask (placeholder)
+  whichSig <- rep(TRUE, nrow(combinedNetwork))
+   
   # Subset the network.
   significantEdges <- rownames(combinedNetwork)[whichSig]
   subnetwork <- combinedNetwork[significantEdges, c(1:2)]
@@ -135,7 +144,7 @@ BuildSubnetworkU <- function(geneSet, networks, alpha, hopConstraint, nullDistri
 #' @param hopConstraint The maximum number of hops to be considered for a gene.
 #' @param verbose Whether or not to print detailed information about the run.
 #' @param topX Select the X lowest significant p-values for each gene. NULL by default.
-FindSignificantEdgesForHopU <- function(geneSet, combinedNetwork, hopConstraint,
+FindSignificantEdgesforhopU <- function(geneSet, combinedNetwork, hopConstraint,
                                         verbose = FALSE, topX = NULL){
   # Build the significant subnetwork for each gene, up to the hop constraint.
   uniqueGeneSet <- sort(unique(geneSet))
@@ -201,7 +210,7 @@ FindSignificantEdgesForHopU <- function(geneSet, combinedNetwork, hopConstraint,
         
         # Set the starting and excluded set for the next hop.
         excludedSubset <- c(excludedSubset, startingNodes)
-        startingNodes <- setdiff(unique(subnetworkHops<- unique(c(subnetwork1Hop[,1], subnetwork1Hop[,2]))), excludedSubset)
+        startingNodes <- setdiff(unique(c(subnetworkHops[,1], subnetworkHops[,2])), excludedSubset)
         if(!is.null(topX)){
           topXNew <- topX * length(startingNodes)
         }
@@ -316,12 +325,12 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
           geneToRecurse2 <- c()
           
           # Add edges from genes that overlap.
-          overlappingGenes <- intersect(subnetwork1[,2], subnetwork2[,2])
+          overlappingGenes <- intersect(subnetwork1[, 2], subnetwork2[, 2])
           if(verbose == TRUE){
             message(paste("Hop", hops, "-", length(overlappingGenes), "overlapped between", gene1, "and", gene2))
           }
           whichSubnet1Gene <- which(subnetwork1[,2] %in% overlappingGenes)
-          whichSubnet2Gene <- which(subnetwork2[,2] %in% overlappingGenes)
+          whichSubnet2Gene <- which(subnetwork2[,1] %in% overlappingGenes)
           geneToRecurse1 <- unique(subnetwork1[whichSubnet1Gene, 1])
           geneToRecurse2 <- unique(subnetwork2[whichSubnet2Gene, 1])
           # Subset genes to recurse
@@ -354,7 +363,11 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
             }
           }
         }
-
+ connectingSubnetwork <- connectingSubnetwork[
+  connectingSubnetwork$source %in% c(gene1, gene2) |
+  connectingSubnetwork$target %in% c(gene1, gene2), ,
+          drop = FALSE]
+ 
         # Return the subnetwork, which should now contain all of the edges connecting the
         # gene pair at the prespecified number of hops.
         return(connectingSubnetwork)
@@ -367,16 +380,41 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
     # Bind together the subnetworks for each gene.
     return(do.call(rbind, geneSpecificHopCountSubnetwork))
   })
-  # Bind together the subnetworks for each hop count.
+  
+  #Fix ordering nd filtering
   compositeSubnetwork <- do.call(rbind, hopCountSubnetworks)
   colnames(compositeSubnetwork) <- c("source", "target")
-  compositeSubnetworkEdges <- paste(compositeSubnetwork$source, compositeSubnetwork$target, sep = "__")
-  uniqueEdges <- sort(unique(compositeSubnetworkEdges))
-  compositeSubnetworkDedup <- do.call(rbind, lapply(uniqueEdges, function(edge){
-    whichFirstEdge <- which(compositeSubnetworkEdges == edge)[1]
-    return(compositeSubnetwork[whichFirstEdge,])
-  }))
-  rownames(compositeSubnetworkDedup) <- uniqueEdges
+
+  seedGenes <- names(subnetworks)
+  compositeSubnetwork <- compositeSubnetwork[
+    compositeSubnetwork$source %in% seedGenes |
+      compositeSubnetwork$target %in% seedGenes, , drop = FALSE]
+  
+  # remove duplicate
+  edgeKeys <- paste(compositeSubnetwork$source,
+                    compositeSubnetwork$target, sep = "__")
+  compositeSubnetwork <- compositeSubnetwork[!duplicated(edgeKeys), ]
+  
+  #order fixing
+  compositeSubnetwork <- compositeSubnetwork[
+    order(compositeSubnetwork$source, compositeSubnetwork$target), ]
+  
+  rownames(compositeSubnetwork) <- paste(compositeSubnetwork$source,
+                                         compositeSubnetwork$target, sep = "__")
+  return(compositeSubnetwork)
+}
+  
+  compositeSubnetworkDedup <- compositeSubnetworkDedup[order(compositeSubnetworkDedup$source,
+                                                             compositeSubnetworkDedup$target), ]
+  edgeKeys <- paste(compositeSubnetworkDedup$source, compositeSubnetworkDedup$target, sep = "__")
+  rownames(compositeSubnetworkDedup) <- edgeKeys
+  
+  #additional filter
+  allGenes <- names(subnetworks)
+  compositeSubnetworkDedup <- compositeSubnetworkDedup[
+    compositeSubnetworkDedup$source %in% allGenes |
+      compositeSubnetworkDedup$target %in% allGenes, ,
+    drop = FALSE]
   
   return(compositeSubnetworkDedup)
 }
