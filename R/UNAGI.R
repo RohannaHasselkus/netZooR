@@ -309,7 +309,6 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
           subnetwork1 <- subnetworks[[gene1]][[hops]]
           subnetwork2 <- subnetworks[[gene2]][[hops]]
           
-          ###### Rohanna fill in
           alreadyExploredGenes <- c(gene1, gene2)
 
           # Initialize overlapping subnetwork.
@@ -346,13 +345,10 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
               whichGeneConnectedToGene1 <- which(subnetwork1[,2] %in% geneToRecurse1)
               whichGeneConnectedToGene2 <- which(subnetwork2[,2] %in% geneToRecurse2)
               
-              
-              ####### Rohanna add genesToRecurse to existing list of explored genes.
               genesToRecurse1 <- setdiff(unique(subnetwork1[whichGeneConnectedToGene1, 1]), alreadyExploredGenes)
               genesToRecurse2 <- setdiff(unique(subnetwork2[whichGeneConnectedToGene2, 1]), alreadyExploredGenes)
               alreadyExploredGenes <- union(alreadyExploredGenes, c(genesToRecurse1, genesToRecurse2))
               
-              ####### Rohanna subset geneToRecurse1 and geneToRecurse2 to only include things not in the alreadyExploredGenes.
               connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichGeneConnectedToGene1,],
                                             subnetwork2[whichGeneConnectedToGene2,])
             }
