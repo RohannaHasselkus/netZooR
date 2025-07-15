@@ -94,24 +94,29 @@ test_that("[UNAGI] SignificantBreadthFirstSearchU() function yields expected res
                       geneC = list(geneCNetHop1, geneCNetHop2, geneCNetHop3),
                       geneD = list(geneDNetHop1, geneDNetHop2, geneDNetHop3))
 })
-#toy network -- Troubleshooting tests 2-5
-subnetwork <- startingNetwork[, c("source", "target")]
-rownames(subnetwork) <- paste(subnetwork$source, subnetwork$target, sep = "__")
 test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected results", {
   
   # Set up the subnetwork from the previous example.
-  geneANetHop1 <- data.frame(source = c("geneA", "geneA"), target = c("gene2", "gene3"))
-  geneBNetHop1 <- data.frame(source = "geneB", target = "gene2")
-  geneCNetHop1 <- data.frame(source = "geneC", target = "gene4")
-  geneDNetHop1 <- data.frame(source = c("geneD", "geneD"), target = c("gene3", "gene4"))
-  geneANetHop2 <- data.frame(source = c("gene2", "gene3"), target = c("geneB", "geneD"))
-  geneBNetHop2 <- data.frame(source = "gene2", target = "geneA")
-  geneCNetHop2 <- data.frame(source = "gene4", target = "geneD")
-  geneDNetHop2 <- data.frame(source = c("gene3", "gene4"), target = c("geneA", "geneC"))
-  geneANetHop3 <- data.frame(source = "geneD", target = "gene4")
-  geneBNetHop3 <- data.frame(source = "geneA", target = "gene3")
-  geneCNetHop3 <- data.frame(source = "geneD", target = "gene3")
-  geneDNetHop3 <- data.frame(source = "geneA", target = "gene2")
+  bindWithReversed <- function(dataFrame){
+    reversedDataFrame <- data.frame(source = dataFrame$target, target = dataFrame$source)
+    return(rbind(dataFrame, reversedDataFrame))
+  }
+  geneANetHop1 <- bindWithReversed(data.frame(source = c("geneA", "geneA"), 
+                                              target = c("gene2", "gene3")))
+  geneBNetHop1 <- bindWithReversed(data.frame(source = "geneB", target = "gene2"))
+  geneCNetHop1 <- bindWithReversed(data.frame(source = "geneC", target = "gene4"))
+  geneDNetHop1 <- bindWithReversed(data.frame(source = c("geneD", "geneD"), 
+                                              target = c("gene3", "gene4")))
+  geneANetHop2 <- bindWithReversed(data.frame(source = c("gene2", "gene3"), 
+                                              target = c("geneB", "geneD")))
+  geneBNetHop2 <- bindWithReversed(data.frame(source = "gene2", target = "geneA"))
+  geneCNetHop2 <- bindWithReversed(data.frame(source = "gene4", target = "geneD"))
+  geneDNetHop2 <- bindWithReversed(data.frame(source = c("gene3", "gene4"), 
+                                              target = c("geneA", "geneC")))
+  geneANetHop3 <- bindWithReversed(data.frame(source = "geneD", target = "gene4"))
+  geneBNetHop3 <- bindWithReversed(data.frame(source = "geneA", target = "gene3"))
+  geneCNetHop3 <- bindWithReversed(data.frame(source = "geneD", target = "gene3"))
+  geneDNetHop3 <- bindWithReversed(data.frame(source = "geneA", target = "gene2"))
   
   subnetworks <- list(geneA = list(geneANetHop1, geneANetHop2, geneANetHop3),
                       geneB = list(geneBNetHop1, geneBNetHop2, geneBNetHop3),
@@ -123,9 +128,8 @@ test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected re
   
   if (is.data.frame(result) || is.matrix(result)) {
     expect_setequal(rownames(result),
-                    c("gene2__geneA", "gene2__geneB", "gene3__geneA", "gene3__geneD",
-                      "gene4__geneC", "gene4__geneD", "geneA__gene3", "geneD__gene3",
-                      "geneA__gene2", "geneB__gene2"))
+                    c("geneA__gene2", "geneB__gene2", "geneA__gene3", "geneD__gene3",
+                      "geneC__gene4", "geneD__gene4"))
     
   } else {
     stop("Error: FindConnectionsForAllHopCountsU did not return a data frame or matrix.")
@@ -138,7 +142,7 @@ test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected re
   
   if (is.data.frame(result) || is.matrix(result)) {
     expect_equal(rownames(result), 
-                 c("geneA__gene3", "gene3__geneD", "geneC__gene4", "gene4__geneD"))
+                 c("gene3__geneD", "gene4__geneD", "geneA__gene3", "gene4__geneD"))
   } else {
     stop("Error: FindConnectionsForAllHopCountsU did not return a data frame or matrix.")
   }
