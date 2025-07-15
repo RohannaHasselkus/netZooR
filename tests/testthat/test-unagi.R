@@ -75,11 +75,11 @@ test_that("[UNAGI] SignificantBreadthFirstSearchU() function yields expected res
                                                                rep("geneD", 100)),
                             score = stats::rnorm(400) / 1000)
   
-  geneANetHop1 <- data.frame(gene = c("gene2", "gene3","geneB"), gene = c("geneA", "geneA", "geneA"))
-  geneBNetHop1 <- data.frame(gene = "gene2", gene = "geneB")
-  geneCNetHop1 <- data.frame(gene = c("gene4","geneD"), gene = c("geneC", "geneC"))
-  geneDNetHop1 <- data.frame(gene = c("gene3", "gene4"), gene = c("geneD", "geneD"))
-  gene2NetHop1 <- data.frame(gene = c("geneA", "geneB", "gene3"), gene=c("gene2", "gene2", "gene2"))
+  geneANetHop1 <- data.frame(source = c("gene2", "gene3","geneB"), target = c("geneA", "geneA", "geneA"))
+  geneBNetHop1 <- data.frame(source = "gene2", target = "geneB")
+  geneCNetHop1 <- data.frame(source = c("gene4","geneD"), target = c("geneC", "geneC"))
+  geneDNetHop1 <- data.frame(source = c("gene3", "gene4"), target = c("geneD", "geneD"))
+  gene2NetHop1 <- data.frame(source = c("geneA", "geneB", "gene3"), target=c("gene2", "gene2", "gene2"))
   geneANetHop2 <- rbind(geneBNetHop1, geneDNetHop1[1,])
   geneBNetHop2 <- geneANetHop1[1,]
   geneCNetHop2 <- geneDNetHop1[2,]
@@ -94,6 +94,9 @@ test_that("[UNAGI] SignificantBreadthFirstSearchU() function yields expected res
                       geneC = list(geneCNetHop1, geneCNetHop2, geneCNetHop3),
                       geneD = list(geneDNetHop1, geneDNetHop2, geneDNetHop3))
 })
+#toy network -- Troubleshooting tests 2-5
+subnetwork <- startingNetwork[, c("source", "target")]
+rownames(subnetwork) <- paste(subnetwork$source, subnetwork$target, sep = "__")
 test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected results", {
   
   # Set up the subnetwork from the previous example.
@@ -119,9 +122,11 @@ test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected re
   result <- FindConnectionsForAllHopCountsU(subnetworks)
   
   if (is.data.frame(result) || is.matrix(result)) {
-    expect_equal(rownames(result), 
-                 c("gene2__geneA", "gene2__geneB", "gene3__geneA", 
-                   "gene3__geneD", "gene4__geneC", "gene4__geneD"))
+    expect_setequal(rownames(result),
+                    c("gene2__geneA", "gene2__geneB", "gene3__geneA", "gene3__geneD",
+                      "gene4__geneC", "gene4__geneD", "geneA__gene3", "geneD__gene3",
+                      "geneA__gene2", "geneB__gene2"))
+    
   } else {
     stop("Error: FindConnectionsForAllHopCountsU did not return a data frame or matrix.")
   }
@@ -144,20 +149,20 @@ test_that("[UNAGI] FindSignificantEdgesforhopU() function yields expected result
   # Here, we expect genes A and B to be connected after 1 hop via gene2, genes A and D
   # to be connected after 1 hop via TF3, and genes A and C to be connected after 2
   # hops via TF4.
-  startingNetwork <- data.frame(gene = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
-                                gene = c(rep("geneA", 4), rep("geneB", 4), rep("geneC", 4), rep("geneD", 4)),
+  startingNetwork <- data.frame(source = c(rep(c("gene1", "gene2", "gene3", "gene4"), 4)),
+                                target = c(rep("geneA", 4), rep("geneB", 4), rep("geneC", 4), rep("geneD", 4)),
                                 score = c(-3, 3, 5, -5, 0, 4, 0.0005, -0.5, 0, 0.0005, -1, 4, 0.0005, -2, 5, 3))
-  addedNoise1 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise1 <- data.frame(source = rep(1:100, 4), gene = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
                             score = stats::rnorm(400) / 10000)
-  addedNoise2 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise2 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
                             score = stats::rnorm(400) / 10000)
-  addedNoise3 <- data.frame(gene = rep(1:100, 4), gene = c(rep("geneA", 100), 
+  addedNoise3 <- data.frame(source = rep(1:100, 4), target = c(rep("geneA", 100), 
                                                          rep("geneB", 100),
                                                          rep("geneC", 100),
                                                          rep("geneD", 100)),
@@ -174,13 +179,13 @@ test_that("[UNAGI] FindSignificantEdgesforhopU() function yields expected result
   null <- rnorm(n = nrow(fullNetworks) * 3) / 100
   
   # Set up the subnetwork from the previous example.
-  geneANetHop1 <- data.frame(gene = c("gene2", "gene3"), gene = c("geneA", "geneA"))
+  geneANetHop1 <- data.frame(source = c("gene2", "gene3"), target = c("geneA", "geneA"))
   rownames(geneANetHop1) <- paste(geneANetHop1$gene, geneANetHop1$gene, sep = "__")
-  geneBNetHop1 <- data.frame(gene = "gene2", gene = "geneB")
+  geneBNetHop1 <- data.frame(source = "gene2", target = "geneB")
   rownames(geneBNetHop1) <- paste(geneBNetHop1$gene, geneBNetHop1$gene, sep = "__")
-  geneCNetHop1 <- data.frame(gene = "gene4", gene = "geneC")
+  geneCNetHop1 <- data.frame(source = "gene4", target = "geneC")
   rownames(geneCNetHop1) <- paste(geneCNetHop1$gene, geneCNetHop1$gene, sep = "__")
-  geneDNetHop1 <- data.frame(gene = c("gene3", "gene4"), gene = c("geneD", "geneD"))
+  geneDNetHop1 <- data.frame(source = c("gene3", "gene4"), target = c("geneD", "geneD"))
   rownames(geneDNetHop1) <- paste(geneDNetHop1$gene, geneDNetHop1$gene, sep = "__")
   geneANetHop2 <- rbind(geneBNetHop1, geneDNetHop1[1,])
   rownames(geneANetHop2) <- paste(geneANetHop2$gene, geneANetHop2$gene, sep = "__")
@@ -316,20 +321,20 @@ test_that("[UNAGI] RunUNAGI() function yields expected results",{
                      "alpha and hopConstraint must be scalar numeric values."))
   expect_error(RunUNAGI(geneSet = "g1", networks = list(1,2,3), alpha = 0.5, hopConstraint = 5, nullDistribution = c(0,0,0)),
                "Each network must be a data frame.")
-  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(gene = NA, gene = NA, score = NA, blah = NA)), 
+  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(source = NA, target = NA, score = NA, blah = NA)), 
                            alpha = 0.5, hopConstraint = 5, nullDistribution = c(0,0,0)),
                paste("Each network must have transcription factors in the first column,",
                "target genes in the second column, and scores in the third column."))
-  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(gene = NA, gene = NA, score = NA)), 
+  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(source = NA, target = NA, score = NA)), 
                            alpha = -1, hopConstraint = 5, nullDistribution = c(0,0,0)), "alpha must be between 0 and 1, not including 0.")
-  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(gene = NA, gene = NA, score = NA)), 
+  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(source = NA, target = NA, score = NA)), 
                            alpha = 0, hopConstraint = 5, nullDistribution = c(0,0,0)), "alpha must be between 0 and 1, not including 0.")
-  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(gene = NA, gene = NA, score = NA)), 
+  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(source = NA, target = NA, score = NA)), 
                            alpha = 1.2, hopConstraint = 5, nullDistribution = c(0,0,0)), "alpha must be between 0 and 1, not including 0.")
-  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(gene = NA, gene = NA, score = NA)), 
+  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(source = NA, target = NA, score = NA)), 
                            alpha = 1, hopConstraint = -4, nullDistribution = c(0,0,0)), "hopConstraint must be an even number of at least 2.")
-  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(gene = NA, gene = NA, score = NA)), 
+  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(source = NA, target = NA, score = NA)), 
                            alpha = 1, hopConstraint = 7, nullDistribution = c(0,0,0)), "hopConstraint must be an even number of at least 2.")
-  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(gene = NA, gene = NA, score = NA)), 
+  expect_error(RunUNAGI(geneSet = "g1", networks = list(data.frame(source = NA, target = NA, score = NA)), 
                            alpha = 1, hopConstraint = 4, nullDistribution = "hi"), "nullDistribution must be numeric.")
 })

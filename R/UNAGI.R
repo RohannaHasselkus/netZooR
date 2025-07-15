@@ -84,6 +84,7 @@ BuildUnipartiteClusters <- function(sigEdges, nodeSet, verbose = FALSE) {
   
   return(clusters)
 }
+
 #' Find the subnetwork of significant edges connecting the genes.
 #' @param geneSet A character vector of genes comprising the targets of interest.
 #' @param networks A list of  unipartite (PANDA-like) networks, where each network is a data frame with the following format:
@@ -298,10 +299,9 @@ SignificantBreadthFirstSearchU <- function(networks, startingNodes,
 #' where each network is a data frame with the following format:
 #' @param verbose Whether or not to print detailed information about the run.
 FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
-  
   # Find a subnetwork for each hop count.
   hopCountSubnetworks <- lapply(1:length(subnetworks[[1]]), function(hops){
-    
+
     # For each pair of genes, find the subnetworks for this number of hops.
     geneSpecificHopCountSubnetwork <- lapply(1:(length(names(subnetworks))-1), function(i){
       genePairSpecificHopCountSubnetwork <- lapply((i+1):length(names(subnetworks)), function(j){
@@ -318,7 +318,7 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
           subnetwork1 <- subnetworks[[gene1]][[hops]]
           subnetwork2 <- subnetworks[[gene2]][[hops]]
           
-          alreadyExploredGenes <- c(gene1, gene2)
+          #alreadyExploredGenes <- c(gene1, gene2)
 
           # Initialize overlapping subnetwork.
           geneToRecurse1 <- c()
@@ -330,15 +330,22 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
             message(paste("Hop", hops, "-", length(overlappingGenes), "overlapped between", gene1, "and", gene2))
           }
           whichSubnet1Gene <- which(subnetwork1[,2] %in% overlappingGenes)
-          whichSubnet2Gene <- which(subnetwork2[,1] %in% overlappingGenes)
+          whichSubnet2Gene <- which(subnetwork2[,2] %in% overlappingGenes)
           geneToRecurse1 <- unique(subnetwork1[whichSubnet1Gene, 1])
           geneToRecurse2 <- unique(subnetwork2[whichSubnet2Gene, 1])
-          # Subset genes to recurse
-          geneToRecurse1 <- setdiff(geneToRecurse1, alreadyExploredGenes)
-          geneToRecurse2 <- setdiff(geneToRecurse2, alreadyExploredGenes)
+          if(hops == 3 && "gene3" %in% overlappingGenes){
+            print(overlappingGenes)
+            print(subnetwork1[whichSubnet1Gene,])
+            print(subnetwork2[whichSubnet2Gene,])
+            print(geneToRecurse1)
+            print(geneToRecurse2)
+          }
           
+          # Subset genes to recurse
+          #geneToRecurse1 <- setdiff(geneToRecurse1, alreadyExploredGenes)
+          #geneToRecurse2 <- setdiff(geneToRecurse2, alreadyExploredGenes)
           # Update explored genes
-          alreadyExploredGenes <- union(alreadyExploredGenes, c(geneToRecurse1, geneToRecurse2))
+          #alreadyExploredGenes <- union(alreadyExploredGenes, c(geneToRecurse1, geneToRecurse2))
           
           # Add overlapping edges to subnetwork
           connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichSubnet1Gene,],
@@ -354,29 +361,37 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
               whichGeneConnectedToGene1 <- which(subnetwork1[,2] %in% geneToRecurse1)
               whichGeneConnectedToGene2 <- which(subnetwork2[,2] %in% geneToRecurse2)
               
-              genesToRecurse1 <- setdiff(unique(subnetwork1[whichGeneConnectedToGene1, 1]), alreadyExploredGenes)
-              genesToRecurse2 <- setdiff(unique(subnetwork2[whichGeneConnectedToGene2, 1]), alreadyExploredGenes)
-              alreadyExploredGenes <- union(alreadyExploredGenes, c(genesToRecurse1, genesToRecurse2))
+              genesToRecurse1 <- unique(subnetwork1[whichGeneConnectedToGene1, 1])
+              genesToRecurse2 <-unique(subnetwork2[whichGeneConnectedToGene2, 1])
+              if(hops == 3 && "gene3" %in% overlappingGenes){
+                print(hop)
+                print(overlappingGenes)
+                print(subnetwork1[whichGeneConnectedToGene1,])
+                print(subnetwork2[whichGeneConnectedToGene2,])
+                print(subnetwork1)
+                print(subnetwork2)
+                print(geneToRecurse1)
+                print(geneToRecurse2)
+              }
+              #genesToRecurse1 <- setdiff(unique(subnetwork1[whichGeneConnectedToGene1, 1]), alreadyExploredGenes)
+              #genesToRecurse2 <- setdiff(unique(subnetwork2[whichGeneConnectedToGene2, 1]), alreadyExploredGenes)
+              #alreadyExploredGenes <- union(alreadyExploredGenes, c(genesToRecurse1, genesToRecurse2))
               
               connectingSubnetwork <- rbind(connectingSubnetwork, subnetwork1[whichGeneConnectedToGene1,],
                                             subnetwork2[whichGeneConnectedToGene2,])
             }
           }
         }
- connectingSubnetwork <- connectingSubnetwork[
-  connectingSubnetwork$source %in% c(gene1, gene2) |
-  connectingSubnetwork$target %in% c(gene1, gene2), ,
-          drop = FALSE]
- 
         # Return the subnetwork, which should now contain all of the edges connecting the
         # gene pair at the prespecified number of hops.
         return(connectingSubnetwork)
       })
+
       # Bind together the subnetwork for each gene pair.
       connectingSubnetworkAll <- do.call(rbind, genePairSpecificHopCountSubnetwork)
       return(connectingSubnetworkAll)
     })
-    
+
     # Bind together the subnetworks for each gene.
     return(do.call(rbind, geneSpecificHopCountSubnetwork))
   })
@@ -385,37 +400,43 @@ FindConnectionsForAllHopCountsU <- function(subnetworks, verbose = FALSE){
   compositeSubnetwork <- do.call(rbind, hopCountSubnetworks)
   colnames(compositeSubnetwork) <- c("source", "target")
 
-  seedGenes <- names(subnetworks)
-  compositeSubnetwork <- compositeSubnetwork[
-    compositeSubnetwork$source %in% seedGenes |
-      compositeSubnetwork$target %in% seedGenes, , drop = FALSE]
-  
-  # remove duplicate
+  # remove duplicates in real time
   edgeKeys <- paste(compositeSubnetwork$source,
                     compositeSubnetwork$target, sep = "__")
-  compositeSubnetwork <- compositeSubnetwork[!duplicated(edgeKeys), ]
+  edgeKeysReverse <- paste(compositeSubnetwork$target,
+                           compositeSubnetwork$source, sep = "__")
+  compositeSubnetworkDedup <- compositeSubnetwork
   
-  #order fixing
-  compositeSubnetwork <- compositeSubnetwork[
-    order(compositeSubnetwork$source, compositeSubnetwork$target), ]
+  # Remove all duplicated edges.
+  i = 1
+  len <- length(edgeKeys)
+  while(i < len){
+    whichToRemove <- setdiff(which(edgeKeys == edgeKeys[i]), i)
+    if(length(whichToRemove) > 0){
+      compositeSubnetworkDedup <- compositeSubnetworkDedup[-whichToRemove,]
+      edgeKeys <- edgeKeys[-whichToRemove]
+      edgeKeysReverse <- edgeKeysReverse[-whichToRemove]
+      len <- length(edgeKeys)
+    }
+    i <- i + 1
+  }
+
+  # Remove all reversed edges.
+  i = 1
+  len <- length(edgeKeys)
+  while(i < len){
+    if(edgeKeysReverse[i] %in% edgeKeys){
+      whichToRemove <- which(edgeKeys == edgeKeysReverse[i])
+      compositeSubnetworkDedup <- compositeSubnetworkDedup[-whichToRemove,]
+      edgeKeys <- edgeKeys[-whichToRemove]
+      edgeKeysReverse <- edgeKeysReverse[-whichToRemove]
+      len <- length(edgeKeys)
+    }
+    i <- i + 1
+  }
   
-  rownames(compositeSubnetwork) <- paste(compositeSubnetwork$source,
-                                         compositeSubnetwork$target, sep = "__")
-  return(compositeSubnetwork)
-}
-  
-  compositeSubnetworkDedup <- compositeSubnetworkDedup[order(compositeSubnetworkDedup$source,
-                                                             compositeSubnetworkDedup$target), ]
-  edgeKeys <- paste(compositeSubnetworkDedup$source, compositeSubnetworkDedup$target, sep = "__")
-  rownames(compositeSubnetworkDedup) <- edgeKeys
-  
-  #additional filter
-  allGenes <- names(subnetworks)
-  compositeSubnetworkDedup <- compositeSubnetworkDedup[
-    compositeSubnetworkDedup$source %in% allGenes |
-      compositeSubnetworkDedup$target %in% allGenes, ,
-    drop = FALSE]
-  
+  # Set row names.
+  rownames(compositeSubnetworkDedup) <- paste(compositeSubnetworkDedup[,1], compositeSubnetworkDedup[,2], sep = "__")
   return(compositeSubnetworkDedup)
 }
 
