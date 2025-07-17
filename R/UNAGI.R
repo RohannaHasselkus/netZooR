@@ -89,19 +89,13 @@ BuildUnipartiteClusters <- function(sigEdges, nodeSet, verbose = FALSE) {
 #' @param geneSet A character vector of genes comprising the targets of interest.
 #' @param networks A list of  unipartite (PANDA-like) networks, where each network is a data frame with the following format:
 #' tf,gene,score
-#' @param alpha The significance cutoff for the statistical test.
 #' @param hopConstraint The maximum number of hops to be considered between gene pairs.
 #' Must be an even number.
-#' @param nullDistribution The null distribution, specified as a vector of values.
 #' @param verbose Whether or not to print detailed information about the run.
 #' @param topX Select the X lowest significant p-values for each gene. NULL by default.
-#' @param doFDRAdjustment Whether or not to perform FDR adjustment.
-#' parameter allows the edges to be split into chunks to prevent memory errors.
-#' saved and need to be recalculated.
-#' Default is FALSE.
 #' @returns A  unipartite subnetwork in the same format as the original networks.
-BuildSubnetworkU <- function(geneSet, networks, alpha, hopConstraint, nullDistribution,
-                            verbose = FALSE, topX = NULL, doFDRAdjustment = TRUE){
+BuildSubnetworkU <- function(geneSet, networks, hopConstraint,
+                            verbose = FALSE, topX = NULL){
   
   # Name edges for each network.
   combinedNetwork <- networks
@@ -132,7 +126,7 @@ BuildSubnetworkU <- function(geneSet, networks, alpha, hopConstraint, nullDistri
   }
   
   # For each gene, find the significant edges from each hop.
-  significantSubnetworks <- FindSignificantEdgesForHop(geneSet = geneSet,
+  significantSubnetworks <- FindEdgesForHopU(geneSet = geneSet,
                                                        combinedNetwork = subnetwork,
                                                        hopConstraint = hopConstraint / 2,
                                                        verbose = verbose, topX = topX)
@@ -145,7 +139,7 @@ BuildSubnetworkU <- function(geneSet, networks, alpha, hopConstraint, nullDistri
 #' @param hopConstraint The maximum number of hops to be considered for a gene.
 #' @param verbose Whether or not to print detailed information about the run.
 #' @param topX Select the X lowest significant p-values for each gene. NULL by default.
-FindSignificantEdgesforhopU <- function(geneSet, combinedNetwork, hopConstraint,
+FindEdgesForHopU <- function(geneSet, combinedNetwork, hopConstraint,
                                         verbose = FALSE, topX = NULL){
   # Build the significant subnetwork for each gene, up to the hop constraint.
   uniqueGeneSet <- sort(unique(geneSet))
@@ -153,24 +147,25 @@ FindSignificantEdgesforhopU <- function(geneSet, combinedNetwork, hopConstraint,
     
     # Get all significant edges for a 1-hop subnetwork.
     if(verbose == TRUE){
-      message(paste("Evaluating hop 1 for gene", tf))
+      message(paste("Evaluating hop 1 for gene", gene))
     }
-    subnetwork1Hop <- SignificantBreadthFirstSearchU(networks = combinedNetwork,
+    subnetwork1Hop <- BreadthFirstSearchU(networks = combinedNetwork,
                                                      startingNodes = gene,
                                                      nodesToExclude = c(),
                                                      verbose = verbose,
                                                      topX = topX)
-    
+
     # Set the starting and excluded set for the next hop.
-    startingNodes <- unique(subnetwork1Hop)
+    startingNodes <- unique(c(subnetwork1Hop[,1], subnetwork1Hop[,2]))
     topXNew <- NULL
     if(!is.null(topX)){
-      topXNew <- topX * length(startingNodes <- unique(c(subnetwork1Hop[,1], subnetwork1Hop[,2])))
+      topXNew <- topX * length(startingNodes)
     }
     excludedSubset <- gene
     
     # Add to the list of all subnetworks.
     allSubnetworksForGene <- list(subnetwork1Hop)
+
     
     # Loop until we reach the maximum number of hops or there are no new edges
     # to traverse.
@@ -185,11 +180,14 @@ FindSignificantEdgesforhopU <- function(geneSet, combinedNetwork, hopConstraint,
         if(verbose == TRUE){
           message(paste("Evaluating hop", hop, "for gene", gene))
         }
-        subnetworkHops <- SignificantBreadthFirstSearchU(networks = combinedNetwork,
+        print(startingNodes)
+        print(excludedSubset)
+        subnetworkHops <- BreadthFirstSearchU(networks = combinedNetwork,
                                                          startingNodes = startingNodes,
                                                          nodesToExclude = excludedSubset,
                                                          verbose = verbose,
                                                          topX = topXNew)
+
         
         # Set the starting and excluded set for the next hop.
         excludedSubset <- c(excludedSubset, startingNodes)
@@ -203,12 +201,13 @@ FindSignificantEdgesforhopU <- function(geneSet, combinedNetwork, hopConstraint,
         if(verbose == TRUE){
           message(paste("Evaluating hop", hop, "for gene", gene))
         }
-        subnetworkHops <- SignificantBreadthFirstSearchU(networks = combinedNetwork,
+
+        subnetworkHops <- BreadthFirstSearchU(networks = combinedNetwork,
                                                          startingNodes = startingNodes,
                                                          nodesToExclude = excludedSubset,
                                                          verbose = verbose,
                                                          topX = topXNew)
-        
+
         # Set the starting and excluded set for the next hop.
         excludedSubset <- c(excludedSubset, startingNodes)
         startingNodes <- setdiff(unique(c(subnetworkHops[,1], subnetworkHops[,2])), excludedSubset)
@@ -225,20 +224,20 @@ FindSignificantEdgesforhopU <- function(geneSet, combinedNetwork, hopConstraint,
     }
     return(allSubnetworksForGene)
   })
-  
+
   # Add the names of the genes.
   names(geneSubnetworks) <- uniqueGeneSet
   return(geneSubnetworks)
 }
 
-#' Find all significant edges adjacent to the starting nodes, excluding the nodes
+#' Find all edges adjacent to the starting nodes, excluding the nodes
 #' specified.
 #' @param networks A PANDA-like network
 #' @param startingNodes The list of nodes from which to start.
 #' @param nodesToExclude The list of nodes to exclude from the search.
 #' @param verbose Whether or not to print detailed information about the run.
 #' @param topX Select the X lowest significant p-values for each gene. NULL by default.
-SignificantBreadthFirstSearchU <- function(networks, startingNodes,
+BreadthFirstSearchU <- function(networks, startingNodes,
                                            nodesToExclude,
                                            verbose = FALSE, topX = NULL){
 
@@ -269,8 +268,7 @@ SignificantBreadthFirstSearchU <- function(networks, startingNodes,
     , ]
   
   # For each edge, measure its significance.
-  subnetwork <- networks
-  allEdges <- rownames(networks)
+  allEdges <- rownames(subnetwork)
   if(length(allEdges) > 0){
     
     # If topX is specified, filter again.
@@ -280,7 +278,7 @@ SignificantBreadthFirstSearchU <- function(networks, startingNodes,
       significantEdges <- allEdges[whichTopX]
     }
     
-    # Return the edges meeting alpha.
+    # Return the edges.
     subnetwork <- networks[significantEdges, c(1:2)]
     if(verbose == TRUE){
       message(paste("Retained", length(significantEdges), "edges"))
