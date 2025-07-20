@@ -127,7 +127,7 @@ test_that("[UNAGI] FindConnectionsForAllHopCountsU() function yields expected re
     stop("Error: FindConnectionsForAllHopCountsU did not return a data frame or matrix.")
   }
 })
-test_that("[UNAGI] FindSignificantEdgesforhopU() function yields expected results",{
+test_that("[UNAGI] FindEdgesforhopU() function yields expected results",{
   
   # Construct a starting network, which will be modified.
   # Here, we expect genes A and B to be connected after 1 hop via gene2, genes A and D
@@ -189,8 +189,8 @@ test_that("[UNAGI] FindSignificantEdgesforhopU() function yields expected result
   expect_true(length(setdiff(rownames(subnetworksFull$geneD[[3]]), rownames(sigEdges$geneD[[3]]))) == 0)
   
   # Test method with only genes A, B, C.
-  sigEdges <- FindSignificantEdgesforhopU(geneSet = c("geneA", "geneB", "geneC"),
-                                          combinedNetwork = subnetwork, hopConstraint = 3)
+  sigEdges <- FindEdgesforhopU(geneSet = c("geneA", "geneB", "geneC"),
+                                          combinedNetwork = startingNetwork, hopConstraint = 3)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[1]]), rownames(sigEdges$geneA[[1]]))) == 0)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[2]]), rownames(sigEdges$geneA[[2]]))) == 0)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[3]]), rownames(sigEdges$geneA[[3]]))) == 0)
@@ -202,8 +202,8 @@ test_that("[UNAGI] FindSignificantEdgesforhopU() function yields expected result
   expect_true(length(setdiff(rownames(subnetworksFull$geneC[[3]]), rownames(sigEdges$geneC[[3]]))) == 0)
   
   # Test method with only genes A and C.
-  sigEdges <- FindSignificantEdgesforhopU(geneSet = c("geneA", "geneC"),
-                                          combinedNetwork = subnetwork,
+  sigEdges <- FindEdgesforhopU(geneSet = c("geneA", "geneC"),
+                                          combinedNetwork = startingNetwork,
                                           hopConstraint = 3)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[1]]), rownames(sigEdges$geneA[[1]]))) == 0)
   expect_true(length(setdiff(rownames(subnetworksFull$geneA[[2]]), rownames(sigEdges$geneA[[2]]))) == 0)
